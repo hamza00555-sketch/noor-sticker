@@ -164,52 +164,36 @@ button:focus-visible {
   overflow: hidden;
   border: 1px solid rgba(200, 174, 161, .38);
   border-radius: 31px;
-  background: var(--tile);
+  background: #f8ead9;
   box-shadow:
     0 14px 34px rgba(102, 70, 57, .12),
     inset 0 0 0 5px rgba(255,255,255,.5);
 }
 
-.wall-card::before {
+.bathroom-scene {
   position: absolute;
   inset: 0;
-  background-image:
-    linear-gradient(to right, transparent calc(25% - .5px), var(--grout) 25%, transparent calc(25% + .5px)),
-    linear-gradient(to right, transparent calc(50% - .5px), var(--grout) 50%, transparent calc(50% + .5px)),
-    linear-gradient(to right, transparent calc(75% - .5px), var(--grout) 75%, transparent calc(75% + .5px)),
-    repeating-linear-gradient(to bottom, transparent 0 103px, var(--grout) 104px, transparent 105px 208px);
-  content: "";
-  opacity: .78;
+  z-index: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center bottom;
   pointer-events: none;
+  user-select: none;
 }
 
 .wall-card::after {
   position: absolute;
   inset: 0;
-  background:
-    radial-gradient(circle at 50% -10%, rgba(255, 246, 208, .8), transparent 41%),
-    linear-gradient(to bottom, transparent 76%, rgba(247, 224, 214, .28));
+  z-index: 1;
+  background: linear-gradient(to bottom, rgba(255,255,255,.08), transparent 44%, rgba(255, 232, 219, .06));
   content: "";
   pointer-events: none;
 }
 
-.wall-arch {
-  position: absolute;
-  top: -66px;
-  left: 50%;
-  z-index: 1;
-  width: 245px;
-  height: 104px;
-  border: 2px solid rgba(229, 195, 181, .65);
-  border-radius: 50%;
-  background: #fff8ee;
-  box-shadow: 0 8px 18px rgba(158, 116, 96, .08);
-  transform: translateX(-50%);
-}
-
 .sticker-wall {
   position: absolute;
-  inset: 0 0 64px;
+  inset: 0 0 27%;
   z-index: 3;
   overflow: hidden;
   touch-action: manipulation;
@@ -397,90 +381,6 @@ button:focus-visible {
 .bubble-one { top: 20%; left: 6%; width: 18px; height: 18px; }
 .bubble-two { top: 33%; right: 5%; width: 11px; height: 11px; animation-delay: -.9s; }
 .bubble-three { top: 59%; left: 9%; width: 10px; height: 10px; animation-delay: -2.1s; }
-
-.bathroom-shelf {
-  position: absolute;
-  right: 0;
-  bottom: 0;
-  left: 0;
-  z-index: 4;
-  height: 64px;
-  border-top: 2px solid #d7b8aa;
-  background:
-    linear-gradient(to bottom, #f9ded2 0 9px, #deb9a8 10px 12px, #f0cfc1 13px 100%);
-  box-shadow: 0 -6px 20px rgba(121, 82, 66, .07);
-  pointer-events: none;
-}
-
-.plant-pot {
-  position: absolute;
-  right: 28px;
-  bottom: 10px;
-  width: 38px;
-  height: 30px;
-  border-radius: 6px 6px 12px 12px;
-  background: #d98c79;
-  box-shadow: inset 0 -5px 0 rgba(143, 79, 66, .13);
-}
-
-.plant-pot i {
-  position: absolute;
-  bottom: 25px;
-  left: 15px;
-  width: 15px;
-  height: 28px;
-  border-radius: 100% 0 100% 0;
-  background: #7da78e;
-  transform: rotate(-25deg);
-  transform-origin: bottom;
-}
-
-.plant-pot i:nth-child(2) { left: 19px; height: 34px; transform: rotate(16deg) scaleX(-1); }
-.plant-pot i:nth-child(3) { left: 6px; height: 22px; transform: rotate(-53deg); }
-
-.soap-bottle {
-  position: absolute;
-  bottom: 10px;
-  left: 35px;
-  width: 25px;
-  height: 37px;
-  border-radius: 8px 8px 6px 6px;
-  background: #f292aa;
-  box-shadow: inset -5px 0 0 rgba(198, 74, 107, .11);
-}
-
-.soap-bottle::before {
-  position: absolute;
-  top: -8px;
-  left: 8px;
-  width: 10px;
-  height: 10px;
-  border-radius: 2px;
-  background: #b17879;
-  content: "";
-}
-
-.soap-bottle i {
-  position: absolute;
-  top: -10px;
-  left: 12px;
-  width: 13px;
-  height: 3px;
-  border-radius: 2px;
-  background: #b17879;
-}
-
-.rolled-towel {
-  position: absolute;
-  bottom: 11px;
-  left: 77px;
-  width: 49px;
-  height: 31px;
-  border: 2px solid #efc0ca;
-  border-radius: 50%;
-  background: #ffe7ec;
-  box-shadow: inset 8px 0 0 #f7cfd8;
-}
 
 .bottom-actions {
   position: relative;

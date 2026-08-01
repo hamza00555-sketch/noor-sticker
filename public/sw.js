@@ -1,5 +1,9 @@
-const CACHE_NAME = "noor-wall-v1";
-const CORE_ASSETS = ["/manifest.webmanifest", "/app-icon.svg"];
+const CACHE_NAME = "noor-wall-v2";
+const CORE_ASSETS = [
+  "/manifest.webmanifest",
+  "/app-icon.svg",
+  "/assets/bathroom-wall-v1.webp",
+];
 
 self.addEventListener("install", (event) => {
   event.waitUntil(

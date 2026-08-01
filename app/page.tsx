@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import Image from "next/image";
 import { STICKER_DATA } from "./sticker-data.generated";
 
 type Placement = {
@@ -213,7 +214,16 @@ export default function Home() {
         </header>
 
         <section className="wall-card" aria-label="جدار ملصقات نور">
-          <div className="wall-arch" aria-hidden="true" />
+          <Image
+            className="bathroom-scene"
+            src="/assets/bathroom-wall-v1.webp"
+            alt=""
+            aria-hidden="true"
+            draggable={false}
+            fill
+            priority
+            sizes="(max-width: 540px) calc(100vw - 24px), 516px"
+          />
           <div className="bubble bubble-one" aria-hidden="true" />
           <div className="bubble bubble-two" aria-hidden="true" />
           <div className="bubble bubble-three" aria-hidden="true" />
@@ -296,11 +306,6 @@ export default function Home() {
             ) : null}
           </div>
 
-          <div className="bathroom-shelf" aria-hidden="true">
-            <span className="plant-pot"><i /><i /><i /></span>
-            <span className="soap-bottle"><i /></span>
-            <span className="rolled-towel" />
-          </div>
         </section>
 
         <div className="bottom-actions">
