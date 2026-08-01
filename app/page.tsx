@@ -15,10 +15,23 @@ type Placement = {
   createdAt: string;
 };
 
-type FlyingSticker = {
-  placement: Placement;
-  dx: number;
-  dy: number;
+type DraftSticker = Omit<Placement, "id" | "createdAt">;
+
+type PointerPoint = {
+  x: number;
+  y: number;
+};
+
+type DragAnchor = {
+  pointerId: number;
+  offsetX: number;
+  offsetY: number;
+};
+
+type RotationGesture = {
+  pointerIds: [number, number];
+  startAngle: number;
+  startRotation: number;
 };
 
 const STICKERS = Array.from({ length: 35 }, (_, index) => index + 1);
@@ -33,6 +46,14 @@ function stickerSize(id: number) {
   if (id >= 21 && id <= 25) return 104;
   if (id >= 26) return 82;
   return 94;
+}
+
+function angleBetween(first: PointerPoint, second: PointerPoint) {
+  return Math.atan2(second.y - first.y, second.x - first.x) * (180 / Math.PI);
+}
+
+function normalizeRotation(rotation: number) {
+  return ((rotation + 540) % 360) - 180;
 }
 
 function localDateKey(value: string | Date) {
@@ -70,9 +91,14 @@ function playCelebrationChime() {
 
 export default function Home() {
   const wallRef = useRef<HTMLDivElement>(null);
+  const draftRef = useRef<DraftSticker | null>(null);
+  const activePointersRef = useRef(new Map<number, PointerPoint>());
+  const dragAnchorRef = useRef<DragAnchor | null>(null);
+  const rotationGestureRef = useRef<RotationGesture | null>(null);
   const [placements, setPlacements] = useState<Placement[]>([]);
   const [selectedSticker, setSelectedSticker] = useState<number | null>(null);
-  const [flying, setFlying] = useState<FlyingSticker | null>(null);
+  const [draftSticker, setDraftSticker] = useState<DraftSticker | null>(null);
+  const [stickingId, setStickingId] = useState<string | null>(null);
   const [pickerOpen, setPickerOpen] = useState(false);
   const [parentOpen, setParentOpen] = useState(false);
   const [resetConfirm, setResetConfirm] = useState(false);
@@ -116,45 +142,130 @@ export default function Home() {
   }, [placements]);
 
   function chooseSticker(id: number) {
+    draftRef.current = null;
+    activePointersRef.current.clear();
+    dragAnchorRef.current = null;
+    rotationGestureRef.current = null;
+    setDraftSticker(null);
     setSelectedSticker(id);
     setPickerOpen(false);
     setResetConfirm(false);
     if (navigator.vibrate) navigator.vibrate(18);
   }
 
-  function placeSticker(event: React.PointerEvent<HTMLDivElement>) {
-    if (selectedSticker === null || flying) return;
+  function updateDraft(next: DraftSticker) {
+    draftRef.current = next;
+    setDraftSticker(next);
+  }
+
+  function clampedPosition(clientX: number, clientY: number, size: number) {
     const wall = wallRef.current;
-    if (!wall) return;
+    if (!wall) return null;
 
     const rect = wall.getBoundingClientRect();
-    const localX = Math.min(Math.max(event.clientX - rect.left, 44), rect.width - 44);
-    const localY = Math.min(Math.max(event.clientY - rect.top, 48), rect.height - 76);
-    const x = (localX / rect.width) * 100;
-    const y = (localY / rect.height) * 100;
-    const rotation = Math.round(Math.random() * 14 - 7);
+    const edge = Math.min(size / 2 + 4, rect.width / 2, rect.height / 2);
+    const localX = Math.min(Math.max(clientX - rect.left, edge), rect.width - edge);
+    const localY = Math.min(Math.max(clientY - rect.top, edge), rect.height - edge);
+    return {
+      x: (localX / rect.width) * 100,
+      y: (localY / rect.height) * 100,
+    };
+  }
+
+  function beginRotationGesture() {
+    const draft = draftRef.current;
+    const entries = Array.from(activePointersRef.current.entries());
+    if (!draft || entries.length < 2) {
+      rotationGestureRef.current = null;
+      return;
+    }
+
+    const [[firstId, first], [secondId, second]] = entries;
+    rotationGestureRef.current = {
+      pointerIds: [firstId, secondId],
+      startAngle: angleBetween(first, second),
+      startRotation: draft.rotation,
+    };
+  }
+
+  function refreshDraftFromPointers() {
+    const draft = draftRef.current;
+    const wall = wallRef.current;
+    if (!draft || !wall) return;
+
+    let next = draft;
+    const anchor = dragAnchorRef.current;
+    const anchorPoint = anchor
+      ? activePointersRef.current.get(anchor.pointerId)
+      : undefined;
+
+    if (anchor && anchorPoint) {
+      const position = clampedPosition(
+        anchorPoint.x + anchor.offsetX,
+        anchorPoint.y + anchor.offsetY,
+        draft.size,
+      );
+      if (position) next = { ...next, ...position };
+    }
+
+    const rotationGesture = rotationGestureRef.current;
+    if (rotationGesture) {
+      const first = activePointersRef.current.get(rotationGesture.pointerIds[0]);
+      const second = activePointersRef.current.get(rotationGesture.pointerIds[1]);
+      if (first && second) {
+        const angleDelta = angleBetween(first, second) - rotationGesture.startAngle;
+        next = {
+          ...next,
+          rotation: normalizeRotation(rotationGesture.startRotation + angleDelta),
+        };
+      }
+    }
+
+    updateDraft(next);
+  }
+
+  function moveAnchorToRemainingPointer() {
+    const draft = draftRef.current;
+    const wall = wallRef.current;
+    const nextPointer = activePointersRef.current.entries().next().value as
+      | [number, PointerPoint]
+      | undefined;
+    if (!draft || !wall || !nextPointer) {
+      dragAnchorRef.current = null;
+      return;
+    }
+
+    const [pointerId, point] = nextPointer;
+    const rect = wall.getBoundingClientRect();
+    const centerX = rect.left + (draft.x / 100) * rect.width;
+    const centerY = rect.top + (draft.y / 100) * rect.height;
+    dragAnchorRef.current = {
+      pointerId,
+      offsetX: centerX - point.x,
+      offsetY: centerY - point.y,
+    };
+  }
+
+  function placeDraft() {
+    const draft = draftRef.current;
+    if (!draft) return;
+
     const id = `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
     const placement: Placement = {
       id,
-      stickerId: selectedSticker,
-      x,
-      y,
-      rotation,
-      size: stickerSize(selectedSticker),
+      ...draft,
       createdAt: new Date().toISOString(),
     };
 
-    setFlying({
-      placement,
-      dx: rect.width / 2 - localX,
-      dy: rect.height + 112 - localY,
-    });
+    const nextTotal = placements.length + 1;
+    setPlacements((current) => [...current, placement]);
+    setStickingId(id);
+    setSelectedSticker(null);
+    draftRef.current = null;
+    setDraftSticker(null);
 
+    window.setTimeout(() => setStickingId((current) => current === id ? null : current), 620);
     window.setTimeout(() => {
-      setPlacements((current) => [...current, placement]);
-      setFlying(null);
-      setSelectedSticker(null);
-      const nextTotal = placements.length + 1;
       setCelebration({
         stickerId: placement.stickerId,
         message: nextTotal % 5 === 0 ? "يا سلام! خمس نجمات!" : "برافو يا نور!",
@@ -162,7 +273,98 @@ export default function Home() {
       if (soundOn) playCelebrationChime();
       if (navigator.vibrate) navigator.vibrate([30, 45, 55]);
       window.setTimeout(() => setCelebration(null), 1900);
-    }, 880);
+    }, 360);
+  }
+
+  function startStickerDrag(event: React.PointerEvent<HTMLDivElement>) {
+    if (selectedSticker === null || stickingId) return;
+    event.preventDefault();
+
+    activePointersRef.current.set(event.pointerId, {
+      x: event.clientX,
+      y: event.clientY,
+    });
+    event.currentTarget.setPointerCapture(event.pointerId);
+
+    if (!draftRef.current) {
+      const size = stickerSize(selectedSticker);
+      const position = clampedPosition(event.clientX, event.clientY, size);
+      if (!position) return;
+      updateDraft({
+        stickerId: selectedSticker,
+        ...position,
+        rotation: 0,
+        size,
+      });
+      dragAnchorRef.current = {
+        pointerId: event.pointerId,
+        offsetX: 0,
+        offsetY: 0,
+      };
+    } else if (!dragAnchorRef.current) {
+      moveAnchorToRemainingPointer();
+    }
+
+    if (activePointersRef.current.size >= 2) beginRotationGesture();
+  }
+
+  function moveStickerDrag(event: React.PointerEvent<HTMLDivElement>) {
+    if (!activePointersRef.current.has(event.pointerId)) return;
+    event.preventDefault();
+    activePointersRef.current.set(event.pointerId, {
+      x: event.clientX,
+      y: event.clientY,
+    });
+    refreshDraftFromPointers();
+  }
+
+  function finishStickerDrag(
+    event: React.PointerEvent<HTMLDivElement>,
+    cancelled = false,
+  ) {
+    if (!activePointersRef.current.has(event.pointerId)) return;
+    event.preventDefault();
+
+    if (!cancelled) {
+      activePointersRef.current.set(event.pointerId, {
+        x: event.clientX,
+        y: event.clientY,
+      });
+      refreshDraftFromPointers();
+    }
+
+    activePointersRef.current.delete(event.pointerId);
+    if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+      event.currentTarget.releasePointerCapture(event.pointerId);
+    }
+
+    if (activePointersRef.current.size > 0) {
+      if (dragAnchorRef.current?.pointerId === event.pointerId) {
+        moveAnchorToRemainingPointer();
+      }
+      beginRotationGesture();
+      return;
+    }
+
+    dragAnchorRef.current = null;
+    rotationGestureRef.current = null;
+    if (cancelled) {
+      draftRef.current = null;
+      setDraftSticker(null);
+      return;
+    }
+
+    placeDraft();
+  }
+
+  function rotateDraftWithWheel(event: React.WheelEvent<HTMLDivElement>) {
+    const draft = draftRef.current;
+    if (!draft) return;
+    event.preventDefault();
+    updateDraft({
+      ...draft,
+      rotation: normalizeRotation(draft.rotation + (event.deltaY > 0 ? 7 : -7)),
+    });
   }
 
   function undoLastSticker() {
@@ -177,6 +379,11 @@ export default function Home() {
     }
     setPlacements([]);
     setSelectedSticker(null);
+    draftRef.current = null;
+    activePointersRef.current.clear();
+    dragAnchorRef.current = null;
+    rotationGestureRef.current = null;
+    setDraftSticker(null);
     setParentOpen(false);
     setResetConfirm(false);
   }
@@ -231,13 +438,17 @@ export default function Home() {
           <div className="bubble bubble-three" aria-hidden="true" />
 
           <div
-            className={`sticker-wall ${selectedSticker ? "is-ready" : ""}`}
+            className={`sticker-wall ${selectedSticker ? "is-ready" : ""} ${draftSticker ? "is-dragging" : ""}`}
             ref={wallRef}
-            onPointerUp={placeSticker}
+            onPointerDown={startStickerDrag}
+            onPointerMove={moveStickerDrag}
+            onPointerUp={finishStickerDrag}
+            onPointerCancel={(event) => finishStickerDrag(event, true)}
+            onWheel={rotateDraftWithWheel}
             role="application"
             aria-label={
               selectedSticker
-                ? "المسي أي مكان فارغ على الجدار للصق الملصق"
+                ? "اسحبي الملصق على الجدار، لفيه بإصبعين، ثم ارفعي يدك ليلتصق"
                 : `على الجدار ${placements.length} ملصق`
             }
           >
@@ -252,7 +463,7 @@ export default function Home() {
 
             {placements.map((item) => (
               <div
-                className="placed-sticker"
+                className={`placed-sticker ${stickingId === item.id ? "is-sticking" : ""}`}
                 key={item.id}
                 style={
                   {
@@ -264,44 +475,53 @@ export default function Home() {
                 }
               >
                 <img src={stickerPath(item.stickerId)} alt="" draggable={false} />
+                {stickingId === item.id ? (
+                  <>
+                    <i className="stick-sparkle stick-sparkle-a" aria-hidden="true">✦</i>
+                    <i className="stick-sparkle stick-sparkle-b" aria-hidden="true">✦</i>
+                    <i className="stick-sparkle stick-sparkle-c" aria-hidden="true">●</i>
+                  </>
+                ) : null}
               </div>
             ))}
 
-            {flying ? (
+            {draftSticker ? (
               <div
-                className="flying-sticker"
+                className="draft-sticker"
                 style={
                   {
-                    left: `${flying.placement.x}%`,
-                    top: `${flying.placement.y}%`,
-                    "--dx": `${flying.dx}px`,
-                    "--dy": `${flying.dy}px`,
-                    "--dx-mid": `${flying.dx * 0.7}px`,
-                    "--dy-mid": `${flying.dy * 0.48}px`,
-                    "--dx-near": `${flying.dx * 0.11}px`,
-                    "--dy-lift": `${flying.dy * -0.08}px`,
-                    "--rotation": `${flying.placement.rotation}deg`,
-                    "--sticker-size": `${flying.placement.size}px`,
+                    left: `${draftSticker.x}%`,
+                    top: `${draftSticker.y}%`,
+                    "--rotation": `${draftSticker.rotation}deg`,
+                    "--sticker-size": `${draftSticker.size}px`,
                   } as React.CSSProperties
                 }
               >
                 <img
-                  src={stickerPath(flying.placement.stickerId)}
-                  alt="الملصق يطير إلى الجدار"
+                  src={stickerPath(draftSticker.stickerId)}
+                  alt="معاينة الستيكر قبل لصقه"
                   draggable={false}
                 />
-                <i className="landing-sparkle sparkle-a" aria-hidden="true">✦</i>
-                <i className="landing-sparkle sparkle-b" aria-hidden="true">✦</i>
-                <i className="landing-sparkle sparkle-c" aria-hidden="true">●</i>
+                <span className="rotation-badge" aria-hidden="true">
+                  ↻ {Math.round(draftSticker.rotation)}°
+                </span>
               </div>
             ) : null}
 
-            {selectedSticker && !flying ? (
+            {draftSticker ? (
+              <div className="drag-instruction" aria-live="polite">
+                <span aria-hidden="true">↻</span>
+                <strong>لفّيه بإصبعين</strong>
+                <small>وارفعي يدك عشان يلصق</small>
+              </div>
+            ) : null}
+
+            {selectedSticker && !draftSticker ? (
               <div className="tap-hint" aria-live="polite">
-                <span className="tap-finger" aria-hidden="true">👆</span>
+                <span className="tap-finger" aria-hidden="true">✋</span>
                 <div>
-                  <strong>اختاري مكانه</strong>
-                  <small>المسي الجدار يا نور</small>
+                  <strong>اسحبي الستيكر</strong>
+                  <small>لفّيه بإصبعين، وبعدها اتركيه</small>
                 </div>
                 <img src={stickerPath(selectedSticker)} alt="الملصق المختار" />
               </div>

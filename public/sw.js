@@ -1,4 +1,4 @@
-const CACHE_NAME = "noor-wall-v2";
+const CACHE_NAME = "noor-wall-v3";
 const CORE_ASSETS = [
   "/manifest.webmanifest",
   "/app-icon.svg",
