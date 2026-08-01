@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import Image from "next/image";
+import { BATHROOM_WALL_ASSET } from "./bathroom-asset.generated";
 import { STICKER_DATA } from "./sticker-data.generated";
 
 type Placement = {
@@ -216,12 +217,13 @@ export default function Home() {
         <section className="wall-card" aria-label="جدار ملصقات نور">
           <Image
             className="bathroom-scene"
-            src="/assets/bathroom-wall-v1.webp"
+            src={BATHROOM_WALL_ASSET}
             alt=""
             aria-hidden="true"
             draggable={false}
             fill
             priority
+            unoptimized
             sizes="(max-width: 540px) calc(100vw - 24px), 516px"
           />
           <div className="bubble bubble-one" aria-hidden="true" />
