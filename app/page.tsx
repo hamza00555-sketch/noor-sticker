@@ -224,6 +224,32 @@ export default function Home() {
     updateDraft(next);
   }
 
+  function updatePointerFromEvent(event: React.PointerEvent<HTMLDivElement>) {
+    const previousPoint = activePointersRef.current.get(event.pointerId);
+    activePointersRef.current.set(event.pointerId, {
+      x: event.clientX,
+      y: event.clientY,
+    });
+
+    const draft = draftRef.current;
+    if (
+      event.shiftKey &&
+      activePointersRef.current.size === 1 &&
+      draft &&
+      previousPoint
+    ) {
+      updateDraft({
+        ...draft,
+        rotation: normalizeRotation(
+          draft.rotation + (event.clientX - previousPoint.x) * 0.85,
+        ),
+      });
+      return;
+    }
+
+    refreshDraftFromPointers();
+  }
+
   function moveAnchorToRemainingPointer() {
     const draft = draftRef.current;
     const wall = wallRef.current;
@@ -284,7 +310,11 @@ export default function Home() {
       x: event.clientX,
       y: event.clientY,
     });
-    event.currentTarget.setPointerCapture(event.pointerId);
+    try {
+      event.currentTarget.setPointerCapture(event.pointerId);
+    } catch {
+      // Some embedded browsers do not support pointer capture; the drag still works inside the wall.
+    }
 
     if (!draftRef.current) {
       const size = stickerSize(selectedSticker);
@@ -311,11 +341,7 @@ export default function Home() {
   function moveStickerDrag(event: React.PointerEvent<HTMLDivElement>) {
     if (!activePointersRef.current.has(event.pointerId)) return;
     event.preventDefault();
-    activePointersRef.current.set(event.pointerId, {
-      x: event.clientX,
-      y: event.clientY,
-    });
-    refreshDraftFromPointers();
+    updatePointerFromEvent(event);
   }
 
   function finishStickerDrag(
@@ -326,16 +352,16 @@ export default function Home() {
     event.preventDefault();
 
     if (!cancelled) {
-      activePointersRef.current.set(event.pointerId, {
-        x: event.clientX,
-        y: event.clientY,
-      });
-      refreshDraftFromPointers();
+      updatePointerFromEvent(event);
     }
 
     activePointersRef.current.delete(event.pointerId);
-    if (event.currentTarget.hasPointerCapture(event.pointerId)) {
-      event.currentTarget.releasePointerCapture(event.pointerId);
+    try {
+      if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+        event.currentTarget.releasePointerCapture(event.pointerId);
+      }
+    } catch {
+      // Pointer capture is optional, so a missing implementation is safe to ignore.
     }
 
     if (activePointersRef.current.size > 0) {
